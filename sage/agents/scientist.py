@@ -5,6 +5,7 @@ from typing import Any
 
 from sage import config
 from sage.agents.base import BaseAgent
+from sage.audit import log_agent_start, log_agent_end, log_detail, step_for
 from sage.llm import call_llm
 
 
@@ -168,6 +169,9 @@ class ScientistAgent(BaseAgent):
 
     def run(self) -> dict[str, Any]:
         context = self.read_context()
+        _step = step_for(self.name)
+        log_agent_start(self.name, _step, list(context.keys()))
+
         ontologist_output = context.get("ontologist")
         if not isinstance(ontologist_output, dict):
             raise ValueError("ScientistAgent requires 'ontologist' output in MemoryStore context.")
@@ -175,6 +179,9 @@ class ScientistAgent(BaseAgent):
         selected_paths = ontologist_output.get("selected_paths")
         if not isinstance(selected_paths, list) or not selected_paths:
             raise ValueError("ScientistAgent requires non-empty selected_paths from ontologist output.")
+
+        log_detail("Input paths", f"{len(selected_paths)} annotated paths")
+        log_detail("Model", config.STRONG_MODEL)
 
         system_prompt = (
             "You are a hypothesis scientist. Generate concise, testable, dataset-aware hypotheses. "
@@ -200,5 +207,9 @@ class ScientistAgent(BaseAgent):
             output = self._fallback(selected_paths)
 
         output = self._apply_human_checkpoint(output)
+        log_detail("Checkpoint", self.last_checkpoint_action)
+        for h in output.get("hypotheses", []):
+            log_detail(h.get("hypothesis_id", "?"), h.get("hypothesis_statement", "")[:100])
+        log_agent_end(self.name, _step, f"{len(output.get('hypotheses', []))} hypotheses generated")
         self.write_output(output)
         return output

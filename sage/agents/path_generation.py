@@ -8,6 +8,7 @@ import networkx as nx
 
 from sage import config
 from sage.agents.base import BaseAgent
+from sage.audit import log_agent_start, log_agent_end, log_detail, log_section, step_for
 from sage.llm import call_llm
 from sage.mock_kg import load_mock_kg
 
@@ -157,8 +158,14 @@ class PathGenerationAgent(BaseAgent):
             raise ValueError("PathGenerationAgent requires __user_query__ in MemoryStore context.")
 
         query = str(context["__user_query__"])
+        _step = step_for(self.name)
+        log_agent_start(self.name, _step, list(context.keys()))
+        log_detail("User query", query)
+        log_detail("KG size", f"{self.graph.number_of_nodes()} nodes, {self.graph.number_of_edges()} edges")
+
         candidates = self._candidate_paths()
         self.last_candidate_count = len(candidates)
+        log_detail("Candidate paths found", len(candidates))
 
         logic_raw: list[float] = []
         relevance_raw: list[float] = []
@@ -228,6 +235,13 @@ class PathGenerationAgent(BaseAgent):
         top_k = scored_paths[: config.TOP_K_PATHS]
         for i, path in enumerate(top_k, start=1):
             path["path_id"] = f"P{i}"
+
+        log_section("Top-K paths (Eq.14 weighted: logic=0.15, rel=0.15, nov=0.35, sur=0.35)")
+        for p in top_k:
+            nodes = " -> ".join(n["name"] for n in p["nodes"])
+            s = p["scores"]
+            log_detail(p["path_id"], f"total={s['total']:.3f} nov={s['novelty']:.3f} sur={s['surprise']:.3f} | {nodes}")
+        log_agent_end(self.name, _step, f"{len(top_k)} paths selected from {len(candidates)} candidates")
 
         return {
             "query": query,

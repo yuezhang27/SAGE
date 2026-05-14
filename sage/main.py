@@ -11,6 +11,7 @@ import json
 import os
 
 from sage import config
+from sage.audit import log_detail, log_section
 from sage.memory_store import MemoryStore
 from sage.mock_kg import build_mock_kg
 from sage.mock_data_bank import generate_data_bank
@@ -66,14 +67,11 @@ def run_pipeline(query: str) -> dict:
 
     for agent in agents:
         print(f"\n{'=' * 60}")
-        print(f"Running: {agent.name}")
-        print(f"{'=' * 60}")
         output = agent.run()
         # write_output is already called inside each agent's run(),
         # but the spec shows an explicit call here — make it idempotent
         if agent.name not in memory._store:
             agent.write_output(output)
-        print(f"  -> Output keys: {list(output.keys()) if isinstance(output, dict) else type(output)}")
 
     # Merge Explainability results into the final report
     final_report = memory._store["summary"]
@@ -85,11 +83,10 @@ def run_pipeline(query: str) -> dict:
     with open(report_path, "w") as f:
         json.dump(final_report, f, indent=2)
 
-    print(f"\n{'=' * 60}")
-    print("PIPELINE COMPLETE")
-    print(f"{'=' * 60}")
+    log_section("PIPELINE COMPLETE")
+    log_detail("EI merged into report", f"{len(ei_result.get('explainability_results', []))} results")
     print(json.dumps(final_report["report"], indent=2))
-    print(f"\nReport saved to: {report_path}")
+    log_detail("Report saved to", report_path)
 
     return final_report
 

@@ -5,6 +5,7 @@ from typing import Any
 
 from sage import config
 from sage.agents.base import BaseAgent
+from sage.audit import log_agent_start, log_agent_end, log_detail, log_section, step_for
 from sage.llm import call_llm
 
 
@@ -190,6 +191,9 @@ class NoveltyDebateAgent(BaseAgent):
 
     def run(self) -> dict[str, Any]:
         context = self.read_context()
+        _step = step_for(self.name)
+        log_agent_start(self.name, _step, list(context.keys()))
+
         hypothesis = context.get("hypothesis_expansion")
         if not isinstance(hypothesis, dict):
             raise ValueError("NoveltyDebateAgent requires 'hypothesis_expansion' in context.")
@@ -197,6 +201,9 @@ class NoveltyDebateAgent(BaseAgent):
         expanded_hypotheses = hypothesis.get("expanded_hypotheses")
         if not isinstance(expanded_hypotheses, list) or not expanded_hypotheses:
             raise ValueError("NoveltyDebateAgent requires non-empty expanded_hypotheses.")
+
+        log_detail("Hypotheses to debate", len(expanded_hypotheses))
+        log_detail("Debate config", f"sigma_trigger={config.SIGMA_TRIGGER}, sigma_converge={config.SIGMA_CONVERGE}, max_rounds={config.MAX_DEBATE_ROUNDS}")
 
         debate_results: list[dict[str, Any]] = []
 
@@ -268,5 +275,14 @@ class NoveltyDebateAgent(BaseAgent):
             )
 
         output = {"debate_results": debate_results}
+
+        log_section("Debate results (Prover/Verifier/Judge, sigma-triggered)")
+        for dr in debate_results:
+            triggered = "TRIGGERED" if dr.get("debate_triggered") else "skipped"
+            log_detail(
+                dr.get("hypothesis_id", "?"),
+                f"score={dr.get('novelty_score', 0):.2f} rounds={dr.get('total_rounds', 0)} debate={triggered} specious={dr.get('specious_upheld', False)}",
+            )
+        log_agent_end(self.name, _step, f"{len(debate_results)} hypotheses debated")
         self.write_output(output)
         return output

@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from sage.agents.base import BaseAgent
+from sage.audit import log_agent_start, log_agent_end, log_detail, step_for
 from sage.llm import call_llm
 
 
@@ -153,6 +154,8 @@ class SummaryAgent(BaseAgent):
 
     def run(self) -> dict[str, Any]:
         context = self.read_context()
+        _step = step_for(self.name)
+        log_agent_start(self.name, _step, list(context.keys()))
 
         hypothesis_data = context.get("hypothesis_expansion")
         interp_data = context.get("results_interpreter")
@@ -171,6 +174,9 @@ class SummaryAgent(BaseAgent):
         interpretation = interp_data.get("interpretation", {})
         debate_results = (debate_data or {}).get("debate_results", [])
 
+        log_detail("Reads", "hypothesis_expansion + results_interpreter + novelty_debate (NOT coding, NOT explainability)")
+        log_detail("Note", "EI merged by orchestrator post-Summary (Paper Section 3.2.2)")
+
         system_prompt = (
             "You are a research report writer. Synthesize all inputs into a structured "
             "research report. Return strict JSON only in this schema: "
@@ -188,5 +194,8 @@ class SummaryAgent(BaseAgent):
         except Exception:
             output = self._fallback(hyp, interpretation, debate_results)
 
+        report = output.get("report", {})
+        log_detail("Conclusion", report.get("conclusion", "")[:120])
+        log_agent_end(self.name, _step, "final report generated")
         self.write_output(output)
         return output

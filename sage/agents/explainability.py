@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from sage.agents.base import BaseAgent
+from sage.audit import log_agent_start, log_agent_end, log_detail, step_for
 from sage.llm import call_llm
 
 
@@ -124,6 +125,9 @@ class ExplainabilityAgent(BaseAgent):
 
     def run(self) -> dict[str, Any]:
         context = self.read_context()
+        _step = step_for(self.name)
+        log_agent_start(self.name, _step, list(context.keys()))
+
         hypothesis = context.get("hypothesis_expansion")
         if not isinstance(hypothesis, dict):
             raise ValueError("ExplainabilityAgent requires 'hypothesis_expansion' in context.")
@@ -131,6 +135,9 @@ class ExplainabilityAgent(BaseAgent):
         expanded_hypotheses = hypothesis.get("expanded_hypotheses")
         if not isinstance(expanded_hypotheses, list) or not expanded_hypotheses:
             raise ValueError("ExplainabilityAgent requires non-empty expanded_hypotheses.")
+
+        log_detail("Hypotheses to score", len(expanded_hypotheses))
+        log_detail("EI formula", "EI = MD + CP + SBC + CT + MT (each 0-2, total 0-10)")
 
         system_prompt = (
             "You are an explainability evaluator for biomedical hypotheses. "
@@ -154,5 +161,10 @@ class ExplainabilityAgent(BaseAgent):
         except Exception:
             output = self._fallback(expanded_hypotheses)
 
+        for er in output.get("explainability_results", []):
+            dims = er.get("dimensions", {})
+            dim_str = " ".join(f"{d}={dims.get(d, {}).get('score', '?')}" for d in _EI_DIMENSIONS)
+            log_detail(er.get("hypothesis_id", "?"), f"EI={er.get('ei_total', 0)}/10 ({dim_str})")
+        log_agent_end(self.name, _step, f"{len(output.get('explainability_results', []))} hypotheses scored")
         self.write_output(output)
         return output

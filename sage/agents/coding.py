@@ -18,6 +18,7 @@ import pandas as pd
 
 from sage import config
 from sage.agents.base import BaseAgent
+from sage.audit import log_agent_start, log_agent_end, log_detail, step_for
 from sage.llm import call_llm
 
 
@@ -244,6 +245,8 @@ class CodingAgent(BaseAgent):
 
     def run(self) -> dict[str, Any]:
         context = self.read_context()
+        _step = step_for(self.name)
+        log_agent_start(self.name, _step, list(context.keys()))
 
         hypothesis_data = context.get("hypothesis_expansion")
         discovery_data = context.get("dataset_discovery")
@@ -260,15 +263,20 @@ class CodingAgent(BaseAgent):
 
         discovery_result = discovery_data.get("discovery_result", {})
         selected_files = discovery_result.get("selected_files", [])
+        log_detail("Selected files", f"{len(selected_files)} files")
+        log_detail("Model", config.STRONG_MODEL)
 
         # Stage 1: File Inspection
         file_info = _inspect_files(selected_files)
+        log_detail("Stage 1", "file inspection complete")
 
         # Stage 2: Code Generation
         try:
             code = self._generate_code(hyp, file_info, selected_files)
+            log_detail("Stage 2", "code generated via LLM")
         except Exception:
             code = self._get_fallback_code(selected_files)
+            log_detail("Stage 2", "using fallback code template")
 
         # Stage 3: Sandboxed Execution + Repair Loop
         repair_attempts = 0
@@ -279,7 +287,9 @@ class CodingAgent(BaseAgent):
         for attempt in range(config.MAX_REPAIR_ATTEMPTS + 1):
             success, stdout, stderr = _execute_code(code, timeout=30)
             if success:
+                log_detail("Stage 3", f"execution succeeded (attempt {attempt + 1})")
                 break
+            log_detail("Stage 3", f"attempt {attempt + 1} failed: {stderr[:80]}")
             if attempt < config.MAX_REPAIR_ATTEMPTS:
                 repair_attempts += 1
                 try:
@@ -299,5 +309,6 @@ class CodingAgent(BaseAgent):
             }
         }
 
+        log_agent_end(self.name, _step, f"success={success} repairs={repair_attempts}/{config.MAX_REPAIR_ATTEMPTS}")
         self.write_output(output)
         return output

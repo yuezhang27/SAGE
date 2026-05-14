@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from sage.agents.base import BaseAgent
+from sage.audit import log_agent_start, log_agent_end, log_detail, step_for
 from sage.llm import call_llm
 
 
@@ -194,6 +195,9 @@ class OntologistAgent(BaseAgent):
 
     def run(self) -> dict[str, Any]:
         context = self.read_context()
+        _step = step_for(self.name)
+        log_agent_start(self.name, _step, list(context.keys()))
+
         path_output = context.get("path_generation")
         if not isinstance(path_output, dict):
             raise ValueError("OntologistAgent requires 'path_generation' output in MemoryStore context.")
@@ -201,6 +205,8 @@ class OntologistAgent(BaseAgent):
         paths = path_output.get("paths")
         if not isinstance(paths, list) or not paths:
             raise ValueError("OntologistAgent requires non-empty path list from path_generation.")
+
+        log_detail("Input paths", f"{len(paths)} paths to annotate")
 
         system_prompt = (
             "You are a biomedical ontologist. "
@@ -221,6 +227,13 @@ class OntologistAgent(BaseAgent):
 
         try:
             result = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, response_format="json")
-            return self._normalize_output(result, paths)
+            output = self._normalize_output(result, paths)
         except Exception:
-            return self._fallback(paths)
+            output = self._fallback(paths)
+
+        selected = output.get("selected_paths", [])
+        for sp in selected:
+            nodes = " -> ".join(n.get("name", "") for n in sp.get("nodes", []))
+            log_detail(sp.get("path_id", "?"), f"{nodes}")
+        log_agent_end(self.name, _step, f"{len(selected)} paths annotated from {len(paths)} input")
+        return output

@@ -19,6 +19,7 @@ import pandas as pd
 
 from sage import config
 from sage.agents.base import BaseAgent
+from sage.audit import log_agent_start, log_agent_end, log_detail, log_section, step_for
 from sage.llm import call_llm
 
 
@@ -340,6 +341,9 @@ class DatasetDiscoveryAgent(BaseAgent):
 
     def run(self) -> dict[str, Any]:
         context = self.read_context()
+        _step = step_for(self.name)
+        log_agent_start(self.name, _step, list(context.keys()))
+
         hypothesis = context.get("hypothesis_expansion")
         if not isinstance(hypothesis, dict):
             raise ValueError("DatasetDiscoveryAgent requires 'hypothesis_expansion' in context.")
@@ -350,25 +354,35 @@ class DatasetDiscoveryAgent(BaseAgent):
 
         # Use the first hypothesis for dataset discovery
         hyp = expanded_hypotheses[0]
+        log_detail("Target hypothesis", hyp.get("hypothesis_id", "?"))
 
         # Phase 1: Parse constraints
         try:
             constraints = _parse_constraints_llm(hyp)
+            log_detail("Phase 1", "constraints parsed via LLM")
         except Exception:
             constraints = _parse_constraints_fallback(hyp)
+            log_detail("Phase 1", "constraints parsed via fallback")
+
+        log_detail("Predictors", constraints.get("predictors", []))
+        log_detail("Outcome", constraints.get("outcome", ""))
 
         # Phase 2: Build ARG
         targets = _build_arg(constraints)
+        log_detail("Phase 2 ARG targets", f"{len(targets)} targets: {[t.name for t in targets]}")
 
         # Phase 3: File coverage evaluation
         files = self._discover_files()
         coverage_matrix = _build_coverage_matrix(files, targets)
+        log_detail("Phase 3", f"{len(files)} CSV files evaluated")
 
         # Phase 4: Greedy selection
         selected_files, selection_log, unmet = _greedy_select(files, targets)
+        log_detail("Phase 4 greedy", f"{len(selected_files)} files selected")
 
         # Phase 5: Completeness check
         complete = len(unmet) == 0
+        log_detail("Phase 5 complete", f"{complete} (unmet: {sorted(unmet) if unmet else 'none'})")
 
         output: dict[str, Any] = {
             "discovery_result": {
@@ -391,5 +405,6 @@ class DatasetDiscoveryAgent(BaseAgent):
             }
         }
 
+        log_agent_end(self.name, _step, f"{len(selected_files)} files, complete={complete}")
         self.write_output(output)
         return output

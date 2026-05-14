@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from sage.agents.base import BaseAgent
+from sage.audit import log_agent_start, log_agent_end, log_detail, step_for
 from sage.llm import call_llm
 
 
@@ -152,6 +153,9 @@ class HypothesisExpansionAgent(BaseAgent):
 
     def run(self) -> dict[str, Any]:
         context = self.read_context()
+        _step = step_for(self.name)
+        log_agent_start(self.name, _step, list(context.keys()))
+
         scientist = context.get("scientist")
         ontologist = context.get("ontologist")
 
@@ -166,6 +170,9 @@ class HypothesisExpansionAgent(BaseAgent):
             raise ValueError("HypothesisExpansionAgent requires non-empty scientist hypotheses.")
         if not isinstance(selected_paths, list) or not selected_paths:
             raise ValueError("HypothesisExpansionAgent requires non-empty ontologist selected_paths.")
+
+        log_detail("Input hypotheses", f"{len(hypotheses)} from scientist")
+        log_detail("Input paths", f"{len(selected_paths)} from ontologist")
 
         system_prompt = (
             "You are a hypothesis expansion scientist. Expand each scientist hypothesis into a full scientific "
@@ -184,5 +191,8 @@ class HypothesisExpansionAgent(BaseAgent):
         except Exception:
             output = self._fallback(hypotheses)
 
+        for eh in output.get("expanded_hypotheses", []):
+            log_detail(eh.get("hypothesis_id", "?"), eh.get("hypothesis_statement", "")[:100])
+        log_agent_end(self.name, _step, f"{len(output.get('expanded_hypotheses', []))} hypotheses expanded (trunk document)")
         self.write_output(output)
         return output

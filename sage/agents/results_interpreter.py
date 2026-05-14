@@ -9,6 +9,7 @@ from typing import Any
 
 from sage import config
 from sage.agents.base import BaseAgent
+from sage.audit import log_agent_start, log_agent_end, log_detail, step_for
 from sage.llm import call_llm
 
 
@@ -118,6 +119,8 @@ class ResultsInterpreterAgent(BaseAgent):
 
     def run(self) -> dict[str, Any]:
         context = self.read_context()
+        _step = step_for(self.name)
+        log_agent_start(self.name, _step, list(context.keys()))
 
         hypothesis_data = context.get("hypothesis_expansion")
         coding_data = context.get("coding")
@@ -134,6 +137,9 @@ class ResultsInterpreterAgent(BaseAgent):
         hyp = expanded[0]
 
         coding_result = coding_data.get("coding_result", {})
+        log_detail("Coding execution", f"success={coding_result.get('execution_success', False)}")
+        log_detail("Model", config.STRONG_MODEL)
+
         selected_files = []
         if isinstance(discovery_data, dict):
             dr = discovery_data.get("discovery_result", {})
@@ -162,5 +168,9 @@ class ResultsInterpreterAgent(BaseAgent):
         except Exception:
             output = self._fallback(hyp, coding_result)
 
+        interp = output.get("interpretation", {})
+        log_detail("Supported", interp.get("hypothesis_supported", False))
+        log_detail("Feasibility", interp.get("feasibility_score", 0))
+        log_agent_end(self.name, _step, f"hypothesis {'supported' if interp.get('hypothesis_supported') else 'not supported'}")
         self.write_output(output)
         return output
