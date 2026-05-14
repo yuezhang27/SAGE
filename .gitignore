@@ -68,3 +68,9 @@ verify/
 **/*.md
 !README.md
 !**/README.md
+
+# Ignore .claude
+.claude/
+
+# Ignore itself
+.gitignore
