@@ -1,11 +1,14 @@
 import json
 from typing import Any
 
-from openai import OpenAI
-
 from sage import config
 
-client = OpenAI(api_key=config.OPENAI_API_KEY)
+try:
+    from openai import OpenAI
+except ImportError:  # pragma: no cover
+    OpenAI = None  # type: ignore[assignment]
+
+client = OpenAI(api_key=config.OPENAI_API_KEY) if OpenAI and config.OPENAI_API_KEY else None
 
 
 def call_llm(
@@ -14,6 +17,9 @@ def call_llm(
     model: str | None = None,
     response_format: str = "json",
 ) -> dict[str, Any] | str:
+    if client is None:
+        raise RuntimeError("OpenAI client unavailable. Install openai package and set OPENAI_API_KEY.")
+
     model = model or config.DEFAULT_MODEL
     messages = [
         {"role": "system", "content": system_prompt},

@@ -49,6 +49,9 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Binary documents
+*.pdf
+
 # Environment and secrets
 .env
 .env.*
