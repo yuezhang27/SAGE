@@ -1,8 +1,8 @@
 import os
 
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-DEFAULT_MODEL = "gpt-4o-mini"
-STRONG_MODEL = "gpt-4o-mini"
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+STRONG_MODEL = "claude-haiku-4-5-20251001"
 TOP_K_PATHS = 5
 MAX_DEBATE_ROUNDS = 3
 SIGMA_TRIGGER = 1.0

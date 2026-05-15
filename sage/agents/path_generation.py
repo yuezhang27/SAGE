@@ -173,8 +173,8 @@ class PathGenerationAgent(BaseAgent):
         surprise_raw: list[float] = []
 
         for path in candidates:
-            logic_raw.append(self._llm_or_heuristic_score(query, path, "logic"))
-            relevance_raw.append(self._llm_or_heuristic_score(query, path, "relevance"))
+            logic_raw.append(self._heuristic_score(query, path, "logic"))
+            relevance_raw.append(self._heuristic_score(query, path, "relevance"))
             novelty_raw.append(novelty_score(path, self.graph))
             surprise_raw.append(surprise_score(path, self.graph))
 

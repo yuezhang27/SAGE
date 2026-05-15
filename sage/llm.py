@@ -4,11 +4,11 @@ from typing import Any
 from sage import config
 
 try:
-    from openai import OpenAI
+    import anthropic
 except ImportError:  # pragma: no cover
-    OpenAI = None  # type: ignore[assignment]
+    anthropic = None  # type: ignore[assignment]
 
-client = OpenAI(api_key=config.OPENAI_API_KEY) if OpenAI and config.OPENAI_API_KEY else None
+client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY) if anthropic and config.ANTHROPIC_API_KEY else None
 
 
 def call_llm(
@@ -18,19 +18,20 @@ def call_llm(
     response_format: str = "json",
 ) -> dict[str, Any] | str:
     if client is None:
-        raise RuntimeError("OpenAI client unavailable. Install openai package and set OPENAI_API_KEY.")
+        raise RuntimeError("Anthropic client unavailable. Install anthropic package and set ANTHROPIC_API_KEY.")
 
     model = model or config.DEFAULT_MODEL
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-    ]
-    kwargs: dict[str, Any] = {}
-    if response_format == "json":
-        kwargs["response_format"] = {"type": "json_object"}
 
-    resp = client.chat.completions.create(model=model, messages=messages, **kwargs)
-    text = resp.choices[0].message.content or ""
+    if response_format == "json":
+        system_prompt += "\n\nYou MUST respond with valid JSON only. No other text."
+
+    resp = client.messages.create(
+        model=model,
+        max_tokens=4096,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+    text = resp.content[0].text or ""
 
     if response_format == "json":
         return json.loads(text)
