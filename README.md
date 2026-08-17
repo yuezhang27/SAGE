@@ -1,6 +1,6 @@
 # SAGE — Agentic Framework for Biomarker Discovery
 
-Architecture-level reproduction of [SAGE](https://arxiv.org/abs/2602.00953v2): a fixed-serial multi-agent system that connects knowledge graph reasoning, adversarial novelty debate, explainability scoring, and automated statistical validation into a single pipeline for interpretable biomarker discovery.
+SAGE is a fixed-serial multi-agent system that connects knowledge graph reasoning, adversarial novelty debate, explainability scoring, and automated statistical validation into a single pipeline for interpretable biomarker discovery.
 
 ## Architecture
 
